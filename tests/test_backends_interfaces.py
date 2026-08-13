@@ -267,7 +267,12 @@ def test_linux_snapshot_captures_multiple_addresses_rules_and_dns(monkeypatch):
         "route show": [{"dst": "default", "gateway": "192.0.2.1"}],
         "rule show": [
             {"priority": 0, "src": "all", "table": "local"},
-            {"priority": 1000, "src": "192.0.2.0/24", "table": 100},
+            {
+                "priority": 1000,
+                "src": "192.0.2.0",
+                "srclen": 24,
+                "table": 100,
+            },
             {"priority": 1001, "iif": "eth0", "table": 101},
         ],
     }
@@ -294,10 +299,23 @@ def test_linux_snapshot_captures_multiple_addresses_rules_and_dns(monkeypatch):
     assert len(value.ipv4_addresses) == 2
     assert value.ipv4_addresses[1]["label"] == "eth0:secondary"
     assert [rule["priority"] for rule in value.rules] == [1000, 1001]
+    assert value.rules[0]["from"] == "192.0.2.0/24"
+    assert "srclen" not in value.rules[0]
     assert value.dns == {
         "servers": ["192.0.2.53", "192.0.2.54"],
         "domains": ["example.test"],
         "default_route": True,
+    }
+
+
+def test_linux_normalizes_split_rule_destination_prefix():
+    value = LinuxInterfaceProvider._normalize_rule(
+        {"priority": 1002, "dst": "198.51.100.0", "dstlen": 24, "table": 102}
+    )
+    assert value == {
+        "priority": 1002,
+        "to": "198.51.100.0/24",
+        "table": 102,
     }
 
 

@@ -141,9 +141,21 @@ class LinuxInterfaceProvider:
     def _normalize_rule(rule: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(rule)
         if "src" in normalized:
-            normalized["from"] = normalized.pop("src")
+            source = normalized.pop("src")
+            source_length = normalized.pop("srclen", None)
+            if source != "all" and "/" not in source and source_length is not None:
+                source = f"{source}/{source_length}"
+            normalized["from"] = source
         if "dst" in normalized:
-            normalized["to"] = normalized.pop("dst")
+            destination = normalized.pop("dst")
+            destination_length = normalized.pop("dstlen", None)
+            if (
+                destination != "all"
+                and "/" not in destination
+                and destination_length is not None
+            ):
+                destination = f"{destination}/{destination_length}"
+            normalized["to"] = destination
         return normalized
 
     @staticmethod
