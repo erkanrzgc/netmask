@@ -60,20 +60,19 @@ jobs:
           sudo ip -n netmask-ci route add table 100 default dev dummy0
           sudo mkdir -p /tmp/netmask-ci-config
           sudo env NETMASK_CONFIG_DIR=/tmp/netmask-ci-config PATH="$PATH" ip netns exec netmask-ci netmask-cli change dummy0 --mac 02:00:00:00:00:02 --ip 192.0.2.20 --netmask 24
-          test "$(sudo ip -n netmask-ci -o link show dummy0 | awk '{print $17}')" = "02:00:00:00:00:02"
+          sudo ip -n netmask-ci -j link show dummy0 | python -c 'import json, sys; data = json.load(sys.stdin); assert data[0]["address"] == "02:00:00:00:00:02", data'
           sudo ip -n netmask-ci rule del from 192.0.2.0/24 table 100 priority 1000 2>/dev/null || true
           sudo ip -n netmask-ci route del table 100 default dev dummy0 2>/dev/null || true
           sudo env NETMASK_CONFIG_DIR=/tmp/netmask-ci-config PATH="$PATH" ip netns exec netmask-ci netmask-cli restore dummy0
-          test "$(sudo ip -n netmask-ci -o link show dummy0 | awk '{print $17}')" = "02:00:00:00:00:01"
-          sudo ip -n netmask-ci -4 -o addr show dummy0 | grep -q '192.0.2.10/24'
-          sudo ip -n netmask-ci -4 -o addr show dummy0 | grep -q '192.0.2.11/24'
-          sudo ip -n netmask-ci -4 rule show | grep -q '1000:.*from 192.0.2.0/24 lookup 100'
-          sudo ip -n netmask-ci -4 route show table 100 | grep -q 'default dev dummy0'
+          sudo ip -n netmask-ci -j link show dummy0 | python -c 'import json, sys; data = json.load(sys.stdin); assert data[0]["address"] == "02:00:00:00:00:01", data'
+          sudo ip -n netmask-ci -j -4 addr show dummy0 | python -c 'import json, sys; data = json.load(sys.stdin); addresses = {(item["local"], item["prefixlen"]) for entry in data for item in entry["addr_info"]}; assert {("192.0.2.10", 24), ("192.0.2.11", 24)} <= addresses, data'
+          sudo ip -n netmask-ci -j -4 rule show | python -c 'import json, sys; data = json.load(sys.stdin); assert any(rule.get("priority") == 1000 and rule.get("src", rule.get("from")) == "192.0.2.0/24" and str(rule.get("table")) == "100" for rule in data), data'
+          sudo ip -n netmask-ci -j -4 route show table 100 | python -c 'import json, sys; data = json.load(sys.stdin); assert any(route.get("dst") == "default" and route.get("dev") == "dummy0" for route in data), data'
           sudo mkdir -p /tmp/netmask-ci-random
           sudo env NETMASK_CONFIG_DIR=/tmp/netmask-ci-random PATH="$PATH" ip netns exec netmask-ci netmask-cli change dummy0 --random-ip
-          ! sudo ip -n netmask-ci -4 -o addr show dummy0 | grep -q '192.0.2.10/24'
+          sudo ip -n netmask-ci -j -4 addr show dummy0 | python -c 'import json, sys; data = json.load(sys.stdin); assert "192.0.2.10" not in {item["local"] for entry in data for item in entry["addr_info"]}, data'
           sudo env NETMASK_CONFIG_DIR=/tmp/netmask-ci-random PATH="$PATH" ip netns exec netmask-ci netmask-cli restore dummy0
-          sudo ip -n netmask-ci -4 -o addr show dummy0 | grep -q '192.0.2.10/24'
+          sudo ip -n netmask-ci -j -4 addr show dummy0 | python -c 'import json, sys; data = json.load(sys.stdin); assert ("192.0.2.10", 24) in {(item["local"], item["prefixlen"]) for entry in data for item in entry["addr_info"]}, data'
 
   package:
     runs-on: ubuntu-latest
