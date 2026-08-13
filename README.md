@@ -1,292 +1,188 @@
-<h1 align="center">cyberm4fia-netmask</h1>
+# Netmask
 
-<p align="center">
-  <img src="https://img.shields.io/badge/mission-identity%20rotation%20daemon-red?style=for-the-badge" alt="mission">
-</p>
+[![CI](https://github.com/erkanrzgc/netmask/actions/workflows/ci.yml/badge.svg)](https://github.com/erkanrzgc/netmask/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Linux first](https://img.shields.io/badge/platform-Linux--first-informational.svg)](#platform-support)
+[![MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-<div align="center"><pre>
- ██████╗██╗   ██╗██████╗ ███████╗██████╗ ███╗   ███╗██╗  ██╗███████╗██╗ █████╗
-██╔════╝╚██╗ ██╔╝██╔══██╗██╔════╝██╔══██╗████╗ ████║██║  ██║██╔════╝██║██╔══██╗
-██║      ╚████╔╝ ██████╔╝█████╗  ██████╔╝██╔████╔██║███████║█████╗  ██║███████║
-██║       ╚██╔╝  ██╔══██╗██╔══╝  ██╔══██╗██║╚██╔╝██║╚════██║██╔══╝  ██║██╔══██║
-╚██████╗   ██║   ██████╔╝███████╗██║  ██║██║ ╚═╝ ██║     ██║██║     ██║██║  ██║
- ╚═════╝   ╚═╝   ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝     ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝
-</pre></div>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/python-3.6+-blue?style=flat-square&logo=python" alt="python">
-  <img src="https://img.shields.io/badge/platform-linux%20%7C%20windows-purple?style=flat-square" alt="platform">
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="license">
-  <img src="https://img.shields.io/badge/deps-zero%20stdlib%20only-brightgreen?style=flat-square" alt="deps">
-  <img src="https://img.shields.io/badge/mode-interactive%20%7C%20cli%20%7C%20daemon-orange?style=flat-square" alt="mode">
-  <img src="https://img.shields.io/badge/anti--forensics-dns%20%7C%20arp%20%7C%20hostname-red?style=flat-square" alt="anti-forensics">
-</p>
-
-<p align="center">
-  <b>cyberm4fia-netmask</b> is a cross-platform MAC &amp; IP changer with a built-in daemon for continuous network identity rotation. Features anti-forensics (DNS/ARP flush, hostname randomization), network kill switch, interactive box-drawn terminal menu, CLI scriptability, and safe shutdown that restores original settings — for both Linux and Windows.
-</p>
-
----
+Netmask is a Linux-first Python CLI for changing, randomizing, and restoring MAC/IP settings. It records the original interface state before a change and can rotate a MAC address followed by a DHCP renewal on a schedule.
 
 ## Features
 
-### Core Operations
+- Set or generate a locally administered unicast MAC address.
+- Set IPv4 manually, renew DHCP, or probe for an unused host in the current subnet.
+- Restore MAC, link state, multiple IPv4 addresses, policy rules, routes, and supported DNS state.
+- Roll back the whole command automatically if any requested change fails.
+- Run scheduled Linux rotation in a detached process with status and duration tracking.
+- Optionally isolate traffic with a Netmask-owned nftables table or iptables chains.
+- Optionally flush interface-scoped ARP state and the supported DNS cache.
+- Inspect state as human-readable text or JSON and preview changes without mutation.
+- Recover preserved snapshots/firewall state after an interrupted process.
 
-| Capability | Method | Description |
-|---|---|---|
-| MAC Spoofing | `ip link set address` / Registry | Change hardware address of any network interface |
-| Static IP Assignment | `ip addr add` / `netsh` | Set a custom static IP with configurable netmask |
-| DHCP Renew | `dhclient` / `ipconfig /renew` | Release current lease and request a new IP from router |
-| Restore | JSON backup | Return interface to original MAC + IP in one command |
+## Installation
 
-### Random Generators
+Netmask requires Python 3.10 or newer.
 
-| Feature | Implementation | Description |
-|---|---|---|
-| Unicast MAC | `random_mac()` | Generates valid locally-administered unicast MAC (bit 0 = 0) |
-| Private IP | `random_private_ip()` | Picks from 10.0.0.0/8, 172.16.0.0/12, or 192.168.0.0/16 |
-| Quick Mode | `-rm -ri` | One-shot random MAC + random IP |
-
-### Anti-Forensics Suite
-
-| Operation | Command | Effect |
-|---|---|---|
-| DNS Flush | `resolvectl flush-caches` + `systemd-resolved` restart | Wipes all cached DNS resolutions |
-| ARP Flush | `ip neigh flush all` | Clears neighbor cache (device-to-MAC mappings) |
-| Hostname Randomization | `hostnamectl set-hostname` | Spoofs system hostname (e.g. `DESKTOP-A7X3K9M`) |
-
-### Daemon Engine
-
-| Feature | Mechanism | Description |
-|---|---|---|
-| Continuous Rotation | Timer loop | Changes MAC + IP every N seconds (min 10s) |
-| Duration Limit | `-d 5m` / `-d 2h` / `-d 1h30m` | Auto-stop and restore when time expires |
-| Network Kill Switch | iptables DROP on interface | Blocks all traffic during rotation — daemon crash = permanent block |
-| Safe Shutdown | `SIGTERM` / `SIGINT` handler | Restores original MAC + IP on exit |
-| PID Lock | `netmask.pid` file | Prevents duplicate daemon instances per interface |
-| Rotation Log | `netmask.log` with timestamps | Tracks every rotation for auditing |
-| Live Status | `--status` command | Shows uptime, rotation count, current vs original values |
-
-### User Interface
-
-| Section | What It Shows |
-|---|---|
-| **Interface Picker** | All network adapters with MAC, IP, and UP/DOWN status |
-| **Action Menu** | MAC, IP, Both, DHCP Renew, Quick Random, Restore, Daemon |
-| **Value Input** | Manual entry or one-click random generation |
-| **Confirmation** | Before/after summary with old → new values |
-| **Result Display** | Success/failure with actual interface readback |
-| **Daemon Status** | Box-drawn dashboard with PID, uptime, rotations, current settings |
-
----
-
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     netmask.py (entry)                       │
-│              argparse → CLI / Menu / Daemon router           │
-└───────────────────────────┬──────────────────────────────────┘
-                            │
-        ┌───────────────────┼───────────────────┬──────────────┐
-        │                   │                   │              │
-  ┌─────▼──────┐  ┌─────────▼────────┐  ┌──────▼──────┐  ┌────▼──────┐
-  │   menu.py  │  │    daemon.py     │  │   backup.py │  │antiforensi│
-  │ Interactive│  │  Double-fork     │  │  JSON CRUD  │  │ cs.py     │
-  │ Box UI     │  │  Rotate loop     │  │  Restore    │  │ DNS/ARP/  │
-  └────────────┘  │  Kill switch     │  └─────────────┘  │ hostname  │
-                  ├──────────────────┤                   └───────────┘
-                  │  _rotate()       │
-                  │  1. ks_block     │  ← iptables DROP
-                  │  2. disable iface│
-                  │  3. change MAC   │
-                  │  4. change IP    │
-                  │  5. enable iface │
-                  │  6. ks_unblock   │  ← iptables remove
-                  │  7. anti-forensics│ ← DNS+ARP+hostname
-                  └────────┬─────────┘
-                           │
-              ┌────────────┴────────────┐
-              │                         │
-     ┌────────▼────────┐      ┌────────▼────────┐
-     │  interfaces/    │      │   changers/     │
-     │  Abstract ABC   │      │  Abstract ABC   │
-     ├─────────────────┤      ├─────────────────┤
-     │  linux.py       │      │  linux.py       │
-     │  windows.py     │      │  windows.py     │
-     └─────────────────┘      └─────────────────┘
+```console
+python -m pip install netmask-cli
+netmask-cli --version
 ```
 
----
+For development:
 
-## Quick Start
-
-### Linux
-
-```bash
-git clone https://github.com/erkanrzgc/cyberm4fia-netmask.git
-cd cyberm4fia-netmask
-sudo python netmask.py
+```console
+git clone https://github.com/erkanrzgc/netmask.git
+cd netmask
+python -m pip install -e .
 ```
 
-### Windows
+The distribution and primary command are both `netmask-cli`. A backward-compatible `netmask` alias is installed, but many Linux systems already provide `/usr/bin/netmask`; use `netmask-cli` in scripts and documentation to avoid that collision.
 
-```batch
-git clone https://github.com/erkanrzgc/cyberm4fia-netmask.git
-cd cyberm4fia-netmask
-python netmask.py
+## System dependencies
+
+Linux operations use `ip` from iproute2. Random IPv4 selection uses `arping` for duplicate-address detection. DHCP is detected in this order: NetworkManager (`nmcli`), systemd-networkd (`networkctl`), then `dhclient`. The kill switch prefers `nft` and falls back to `iptables`; `resolvectl` enables DNS snapshot/restore.
+
+```console
+# Debian / Ubuntu
+sudo apt install iproute2 iputils-arping network-manager nftables
+
+# Fedora
+sudo dnf install iproute iputils NetworkManager nftables
 ```
 
-> **Note:** Zero pip install needed — Python 3.6+ standard library only. Administrative privileges required.
+Netmask checks required commands before changing the interface and reports a package hint when one is missing.
 
----
+## Quick start
 
-## Usage
-
-### Interactive Mode
-
-```
-sudo python netmask.py
-```
-
-Opens a box-drawn terminal menu that walks you through interface selection, MAC/IP configuration, DHCP renew, daemon control with kill switch + anti-forensics toggles, and backup restore.
-
-### CLI Mode
-
-| Command | What It Does |
-|---------|--------------|
-| `sudo python netmask.py -i eth0 -m 00:11:22:33:44:55` | Change MAC only |
-| `sudo python netmask.py -i eth0 -rm -ri` | Random MAC + random private IP |
-| `sudo python netmask.py -i eth0 -rm --dhcp` | Random MAC + DHCP renew |
-| `sudo python netmask.py -i eth0 --ip 192.168.1.100 -n 255.255.255.0` | Static IP only |
-| `sudo python netmask.py -i eth0 --reset` | Restore original settings |
-
-### CLI Reference
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `-i`, `--interface` | `string` | Network interface name (eth0, wlan0, Ethernet0) |
-| `-m`, `--mac` | `string` | New MAC address (xx:xx:xx:xx:xx:xx) |
-| `-rm`, `--random-mac` | `flag` | Generate random unicast MAC |
-| `--ip` | `string` | New static IP address (e.g. 192.168.1.100) |
-| `-ri`, `--random-ip` | `flag` | Generate random private IP |
-| `-n`, `--netmask` | `string` | Subnet mask (default: 255.255.255.0) |
-| `--dhcp` | `flag` | Release and renew DHCP lease |
-| `--reset` | `flag` | Restore original MAC/IP from backup |
-
-### Daemon Mode
-
-```bash
-# Basic — rotates MAC+IP every 30 seconds
-sudo python netmask.py --daemon -i eth0 -t 30
-
-# Duration — 5 minutes with kill switch + anti-forensics
-sudo python netmask.py --daemon -i eth0 -t 3 -d 5m -ks -af
-
-# Indefinite with full stealth
-sudo python netmask.py --daemon -i eth0 -t 10 -ks -af
-
-# Live status dashboard
-sudo python netmask.py --status
-
-# Stop and restore original settings
-sudo python netmask.py --stop
+```console
+netmask-cli list
+netmask-cli inspect eth0
+netmask-cli change eth0 --random-mac --random-ip --dry-run
+sudo netmask-cli change eth0 --random-mac --dhcp
+sudo netmask-cli change eth0 --ip 192.168.1.40 --netmask 255.255.255.0
+sudo netmask-cli restore eth0
 ```
 
-| Flag | Type | Description |
-|------|------|-------------|
-| `--daemon` | `flag` | Start as background daemon |
-| `-t`, `--interval` | `int` | Rotation interval in seconds (min 10, default 30) |
-| `-d`, `--duration` | `string` | Total run time (`30s`, `5m`, `2h`, `1h30m`). Auto-stop + restore |
-| `-ks`, `--kill-switch` | `flag` | Block network traffic during rotation (iptables DROP) |
-| `-af`, `--anti-forensics` | `flag` | Flush DNS/ARP + randomize hostname on each rotation |
-| `--status` | `flag` | Show daemon status dashboard |
-| `--stop` | `flag` | Stop daemon and restore original settings |
+`--random-ip` excludes the network, broadcast, and current addresses, then uses duplicate-address detection before applying a candidate. This reduces conflicts but cannot guarantee that a silent or temporarily disconnected host does not own the address.
 
-### Daemon Status Output
+## Modern commands
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    NETMASK DAEMON STATUS                      │
-├──────────────────────────────────────────────────────────────┤
-│  Status:       RUNNING                                       │
-│  PID:          12847                                         │
-│  Interface:    eth0                                          │
-│  Interval:     3s                                            │
-│  Duration:     5m                                            │
-│  Remaining:    2m 14s                                        │
-│  Uptime:       2h 14m 37s                                    │
-│  Rotations:    268                                           │
-├──────────────────────────────────────────────────────────────┤
-│  Current MAC:  4a:8f:11:e2:0d:73    Original MAC: 00:1a:2b  │
-│  Current IP:   192.168.1.87/24      Original IP:  192.168.. │
-└──────────────────────────────────────────────────────────────┘
+| Command | Purpose |
+| --- | --- |
+| `netmask-cli list` | List interface names |
+| `netmask-cli inspect eth0 [--json]` | Capture current state without root |
+| `netmask-cli change eth0 OPTIONS` | Apply a transactional one-shot change |
+| `netmask-cli restore eth0` | Restore the preserved original snapshot |
+| `netmask-cli recover [eth0]` | Recover stale firewall/daemon state and snapshots |
+| `netmask-cli daemon start eth0 OPTIONS` | Start detached scheduled rotation |
+| `netmask-cli daemon foreground eth0 OPTIONS` | Run rotation under a service manager |
+| `netmask-cli daemon status` | Show daemon and selected backend state |
+| `netmask-cli daemon stop` | Stop and restore the daemon |
+| `netmask-cli completion bash\|zsh` | Print shell completion code |
+| `netmask-cli systemd-unit` | Print the hardened service template |
+
+Legacy flags such as `netmask-cli -i eth0 --random-mac --dhcp` remain supported.
+
+### Inspection and dry run
+
+```console
+netmask-cli inspect eth0 --json
+netmask-cli change eth0 --random-mac --random-ip --dry-run --json
 ```
 
----
+Dry run reads interface state and resolves proposed values, but does not require root, send an ARP probe, create a backup, or mutate networking. Random-IP dry-run output is explicitly marked as unverified.
 
-## Platform Support
+## CLI reference
 
-| Feature | Linux | Windows |
-|---------|-------|---------|
-| MAC change | `ip link set address` | Registry + netsh |
-| IP change | `ip addr add` | `netsh interface ip set address` |
-| DHCP renew | `dhclient -r && dhclient` | `ipconfig /release && /renew` |
-| Interface discovery | `/sys/class/net/` | `netsh interface show interface` |
-| DNS flush | `resolvectl` + `systemd-resolved` | `ipconfig /flushdns` |
-| Kill switch | `iptables` | Not yet available |
-| Daemon | Double-fork (Unix) | Detached subprocess |
-| Config directory | `~/.config/cyberm4fia/` | `%APPDATA%\cyberm4fia\` |
+| Option | Purpose |
+| --- | --- |
+| `-i`, `--interface NAME` | Select an interface |
+| `-m`, `--mac ADDRESS` | Set a unicast MAC |
+| `-rm`, `--random-mac` | Generate and set a local unicast MAC |
+| `--ip ADDRESS` | Set a static IPv4 address |
+| `-ri`, `--random-ip` | Pick a host from the current subnet |
+| `-n`, `--netmask MASK` | Static IPv4 mask or prefix (default `/24`) |
+| `--dhcp` | Release and renew DHCP |
+| `--reset` | Restore the saved snapshot (legacy form) |
+| `--list-interfaces` | List interface names without requiring root |
+| `--daemon` | Start Linux scheduled rotation |
+| `-t`, `--interval SECONDS` | Rotation interval, minimum 10 seconds |
+| `-d`, `--duration DURATION` | Stop after values such as `30s`, `5m`, or `2h` |
+| `-ks`, `--kill-switch` | Block interface traffic during each rotation |
+| `--network-hygiene` | Flush interface ARP and supported DNS caches |
+| `--status` / `--stop` | Inspect or stop the daemon |
+| `--version` | Print the installed version |
 
----
+Conflicting actions are rejected with exit code `2`. Runtime failures return `1`; successful commands return `0`.
 
-## Project Structure
+## Daemon and restore behavior
 
-```
-cyberm4fia-netmask/
-│
-├── netmask.py                    Entry point (argparse router)
-├── banner.py                     CYBERM4FIA ASCII + ANSI gradient
-├── validator.py                  MAC/IP validation + random generators + duration parser
-├── menu.py                       Interactive box-drawn terminal UI
-├── daemon.py                     Double-fork daemon + rotate loop + kill switch
-├── backup.py                     JSON backup/restore per interface
-├── antiforensics.py              DNS flush + ARP flush + hostname randomization
-├── config.py                     Platform-aware paths + box-draw chars
-├── interfaces/
-│   ├── base.py                   AbstractInterface (ABC)
-│   ├── linux.py                  Linux: /sys/class/net + ip addr
-│   └── windows.py                Windows: netsh + getmac
-├── changers/
-│   ├── base.py                   AbstractChanger (ABC)
-│   ├── linux.py                  Linux: ip link/addr + dhclient
-│   └── windows.py                Windows: netsh + registry + ipconfig
-├── utils/
-│   └── platform.py               OS detection + admin check + subprocess
-├── requirements.txt
-├── README.md
-└── LICENSE                       MIT
+```console
+sudo netmask-cli daemon start eth0 --interval 30 --duration 10m
+sudo netmask-cli daemon start eth0 --interval 30 --kill-switch --network-hygiene
+netmask-cli daemon status
+sudo netmask-cli daemon stop
 ```
 
----
+Each daemon cycle transactionally sets a new MAC and obtains an address through the detected DHCP manager. A failed step first rolls back that cycle. State is stored atomically in the Netmask config directory, and PID reuse is checked using the Linux process start identity. Signals, expiration, and errors all enter cleanup: Netmask removes only its own firewall table/chains and restores the saved snapshot. A failed restore keeps the backup for a later `--reset` and returns a nonzero result.
+
+On Linux, state defaults to `${XDG_CONFIG_HOME:-~/.config}/netmask`. Set `NETMASK_CONFIG_DIR` to isolate it in tests or automation. Netmask neither migrates nor deletes data from older application directories.
+
+### Crash recovery
+
+If the daemon was killed without cleanup or an earlier restore failed:
+
+```console
+sudo netmask-cli recover
+# Limit recovery to one saved interface:
+sudo netmask-cli recover eth0
+```
+
+Recovery refuses to run while a verified daemon is alive. It removes only the recorded Netmask firewall object, attempts every relevant restore, preserves failed backups, and returns nonzero if cleanup is incomplete.
+
+### systemd and completion
+
+Review the generated unit before installation:
+
+```console
+netmask-cli systemd-unit | sudo tee /etc/systemd/system/netmask@.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now netmask@eth0.service
+```
+
+The template runs Netmask in foreground mode, stores state in `/var/lib/netmask`, and limits capabilities to network administration/raw sockets. Adjust its interval or options with a systemd override.
+
+```console
+# Bash
+netmask-cli completion bash > ~/.local/share/bash-completion/completions/netmask-cli
+
+# Zsh
+netmask-cli completion zsh > ~/.zfunc/_netmask-cli
+```
+
+## Safety notes
+
+- Do not change the interface carrying your active SSH session; bringing it down can disconnect you before recovery.
+- A MAC or private IPv4 change does not change your router's public IP and does not provide anonymity.
+- Static and randomly selected IPv4 addresses can conflict with DHCP leases or other hosts.
+- Drivers, managed networks, and cloud platforms may reject MAC changes.
+- Review firewall access before enabling the kill switch. Netmask never flushes a global ruleset or built-in iptables chain.
+
+Use Netmask only on systems and networks you are authorized to administer.
+
+## Platform support
+
+Linux is the supported platform for one-shot changes, restore, daemon, kill switch, and network hygiene. Windows one-shot MAC, IPv4, and DHCP backends are experimental and mock-tested; adapter drivers and localized `netsh` output vary. Daemon and kill-switch options fail explicitly on Windows.
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| `Permission denied` | Run with `sudo` on Linux, or Admin terminal on Windows |
-| `dhclient: command not found` | Install ISC DHCP client: `sudo apt install isc-dhcp-client` |
-| Interface not found | Check available interfaces: `ip link show` (Linux) or `netsh interface show interface` (Windows) |
-| MAC change not taking effect | Some NICs/drivers block MAC spoofing; try a different interface or driver |
-| Kill switch blocks everything | `iptables -F OUTPUT` to flush all rules; `sudo netmask.py --stop` does this automatically |
-| Kill switch rules persist | Run `sudo iptables -D OUTPUT -o <iface> -j DROP` manually |
-| Daemon already running | Use `--stop` first, or delete stale `netmask.pid` from config dir |
-| DHCP lease not renewing | Network may require MAC+IP to be consistent; try `-rm --dhcp` combined |
-| Backup restore fails | Manual restore: check `~/.config/cyberm4fia/backup.json` for original values |
-| DNS not flushing | Ensure `systemd-resolved` is active: `sudo systemctl enable --now systemd-resolved` |
+- **Permission denied:** use `sudo` on Linux or an elevated terminal on Windows.
+- **Command missing:** install the package suggested by Netmask's preflight error.
+- **No backup found:** a successful one-shot change must occur before `--reset`; inspect the configured `backup.json` if earlier cleanup failed.
+- **DHCP renewal fails:** confirm NetworkManager/networkd owns the interface or install `dhclient` as fallback.
+- **Daemon is stale:** `--status` verifies the stored process identity and discards stale state.
+- **`netmask --version` shows another program:** invoke `netmask-cli`; `/usr/bin/netmask` is a separate utility on some distributions.
 
----
+## Development and security
 
-## License
-
-MIT License — see [LICENSE](./LICENSE) for details.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for tests and contribution workflow, [SECURITY.md](SECURITY.md) for private vulnerability reporting, [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and [CHANGELOG.md](CHANGELOG.md). Netmask is available under the [MIT License](LICENSE).

@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e . pytest pytest-cov ruff
+      - run: ruff check .
+      - run: pytest --cov=netmask_cli --cov-report=term-missing --cov-fail-under=80
+
+  windows-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install .
+      - run: python -c "import netmask_cli; print(netmask_cli.__version__)"
+      - run: netmask-cli --help
+      - run: netmask-cli --version
+      - run: netmask --version
+
+  linux-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: sudo apt-get update && sudo apt-get install -y iputils-arping nftables
+      - run: python -m pip install .
+      - name: Verify change and restore in a disposable namespace
+        run: |
+          sudo ip netns add netmask-ci
+          trap 'sudo ip netns del netmask-ci 2>/dev/null || true' EXIT
+          sudo ip -n netmask-ci link add dummy0 type dummy
+          sudo ip -n netmask-ci link set dummy0 address 02:00:00:00:00:01
+          sudo ip -n netmask-ci addr add 192.0.2.10/24 dev dummy0
+          sudo ip -n netmask-ci addr add 192.0.2.11/24 dev dummy0
+          sudo ip -n netmask-ci link set dummy0 up
+          sudo env NETMASK_CONFIG_DIR=/tmp/netmask-ci-inspect PATH="$PATH" ip netns exec netmask-ci netmask-cli inspect dummy0 --json | grep -q '"interface": "dummy0"'
+          sudo env NETMASK_CONFIG_DIR=/tmp/netmask-ci-dry PATH="$PATH" ip netns exec netmask-ci netmask-cli change dummy0 --random-ip --dry-run --json | grep -q '"dry_run": true'
+          sudo ip -n netmask-ci rule add from 192.0.2.0/24 table 100 priority 1000
+          sudo ip -n netmask-ci route add table 100 default dev dummy0
+          sudo mkdir -p /tmp/netmask-ci-config
+          sudo env NETMASK_CONFIG_DIR=/tmp/netmask-ci-config PATH="$PATH" ip netns exec netmask-ci netmask-cli change dummy0 --mac 02:00:00:00:00:02 --ip 192.0.2.20 --netmask 24
+          test "$(sudo ip -n netmask-ci -o link show dummy0 | awk '{print $17}')" = "02:00:00:00:00:02"
+          sudo ip -n netmask-ci rule del from 192.0.2.0/24 table 100 priority 1000
+          sudo ip -n netmask-ci route del table 100 default dev dummy0
+          sudo env NETMASK_CONFIG_DIR=/tmp/netmask-ci-config PATH="$PATH" ip netns exec netmask-ci netmask-cli restore dummy0
+          test "$(sudo ip -n netmask-ci -o link show dummy0 | awk '{print $17}')" = "02:00:00:00:00:01"
+          sudo ip -n netmask-ci -4 -o addr show dummy0 | grep -q '192.0.2.10/24'
+          sudo ip -n netmask-ci -4 -o addr show dummy0 | grep -q '192.0.2.11/24'
+          sudo ip -n netmask-ci -4 rule show | grep -q '1000:.*from 192.0.2.0/24 lookup 100'
+          sudo ip -n netmask-ci -4 route show table 100 | grep -q 'default dev dummy0'
+          sudo mkdir -p /tmp/netmask-ci-random
+          sudo env NETMASK_CONFIG_DIR=/tmp/netmask-ci-random PATH="$PATH" ip netns exec netmask-ci netmask-cli change dummy0 --random-ip
+          ! sudo ip -n netmask-ci -4 -o addr show dummy0 | grep -q '192.0.2.10/24'
+          sudo env NETMASK_CONFIG_DIR=/tmp/netmask-ci-random PATH="$PATH" ip netns exec netmask-ci netmask-cli restore dummy0
+          sudo ip -n netmask-ci -4 -o addr show dummy0 | grep -q '192.0.2.10/24'
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install build
+      - run: python -m build
+      - run: python -m venv /tmp/netmask-wheel-test
+      - run: /tmp/netmask-wheel-test/bin/pip install dist/*.whl
+      - run: /tmp/netmask-wheel-test/bin/netmask-cli --help
+      - run: /tmp/netmask-wheel-test/bin/netmask-cli --version
+      - run: /tmp/netmask-wheel-test/bin/netmask-cli list
+      - run: /tmp/netmask-wheel-test/bin/netmask --version
