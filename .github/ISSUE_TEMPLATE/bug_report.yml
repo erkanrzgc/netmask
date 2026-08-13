@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a reproducible Netmask failure
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: checkboxes
+    attributes:
+      label: Safety check
+      options:
+        - label: This report contains no private vulnerability details.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Netmask version
+      placeholder: Output of netmask-cli --version
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform and Python version
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      render: shell

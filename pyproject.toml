@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "netmask-cli"
+version = "0.3.0"
+description = "A Linux-first CLI for changing and restoring MAC/IP settings"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Erkan Risngits" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: System :: Networking",
+]
+
+[project.scripts]
+netmask-cli = "netmask_cli.cli:main"
+netmask = "netmask_cli.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/netmask_cli"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/.github",
+  "/src/netmask_cli",
+  "/tests",
+  "/CHANGELOG.md",
+  "/CODE_OF_CONDUCT.md",
+  "/CONTRIBUTING.md",
+  "/LICENSE",
+  "/README.md",
+  "/SECURITY.md",
+  "/pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+testpaths = ["tests"]
+markers = ["integration: requires Linux root and network namespace support"]
+
+[tool.coverage.run]
+branch = true
+source = ["netmask_cli"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
